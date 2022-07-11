@@ -2,53 +2,109 @@ import React, { useEffect, useState } from "react";
 import "./pages.css";
 import { TabList, Tab, Widget, Tag, Table, Form } from "web3uikit";
 import { Link } from "react-router-dom";
+import { useMoralis, useMoralisWeb3Api } from "react-moralis";
+//to interact with Moralis DB
 
 const Home = () => {
+  const [passRate, setPassRate] = useState(0);
+  const [totalP, setTotalP] = useState(0);
+  const [counted, setCounted] = useState(0);
+  const [voters, setVoters] = useState(0);
+  const { Moralis, isInitialised } = useMoralis();
+  //for interaction with Moralish DB
+  const [proposals, setProposals] = useState([]);
+  const Web3Api = useMoralisWeb3Api();
 
-  const [proposals, setProposals] = useState(
-    [
-      [//sample proposals hardcoded for now
-        [
-          1,
-          <div>Should we start a Moralis hamburger chain?</div>,
-          <Tag color="green" text="Passed" />,
-        ],
-        [
-          2,
-          "Should we accept Elon Musks $44billion offer for our DAO?",
-          <Link to="/proposal" state={"hello"}>
-            <Tag color="red" text="Rejected" />
-          </Link>,
-        ],
-        [
-          3,
-          "Do you want a Web3 Slack tutorial?",
-          <Tag color="blue" text="Ongoing" />,
-        ],
-        [
-          4,
-          "Are you interested in Xbox/Console web3 tutorials?",
-          <Tag color="blue" text="Ongoing" />,
-        ],
-        [
-          5,
-          "Would you attend a Moralis Builder get together in Miami?",
-          <Tag color="blue" text="Ongoing" />,
-        ],
-    ]
-    ]
-  );
+  async function getStatus(proposalId) {
+    const ProposalCounts = Moralis.Object.extend("ProposalCounts");
+    const query = new Moralis.Query(ProposalCounts);
+    query.equalTo("uid", proposalId);
+    const result = await query.first();
+    if (result !== undefined) {
+      if (result.attributes.passed) {
+        return { color: "green", text: "Passed" };
+      } else {
+        return { color: "red", text: "Rejected" };
+      }
+    } else {
+      return {color: "blue", text: "Ongoing" };
+    }
+  }
+
+  useEffect(() => {
+    if (isInitialised) {
+      async function getProposals() {
+        const Proposals = Moralis.Object.extend("Proposals");
+        const query = new Moralis.Query(Proposals);
+        query.descending("uid_decimal");
+        const results = await query.find();
+        const table = await Promise.all(
+          results.map(async (e) =>[
+            e.attributes.uid,
+            e.attributes.description,
+            <Link to="/proposal" state={{
+              description: e.attributes.description,
+              color: (await getStatus(e.attributes.uid)).color,
+              text: (await getStatus(e.attributes.uid)).text,
+              id: e.attributes.uid,
+              proposer: e.attributes.proposer
+            }}>
+              <Tag
+                color={(await getStatus(e.attributes.uid)).color}
+                text={(await getStatus(e.attributes.uid)).text}
+                />
+            </Link>,
+          ])
+        );
+        setProposals(table);
+        setTotalP(results.length);
+      }
+
+      async function getPassRate() {
+        const ProposalCounts = Moralis.Object.extend("ProposalCounts");
+        const query = new Moralis.Query(ProposalCounts);
+        const results = await query.find();
+        let votesUp = 0;
+
+        results.forEach((e) => {
+          if (e.attributes.passed) {
+            votesUp++;
+          }
+        });
+        setCounted(results.length);
+        setPassRate((votesUp / results.length) * 100);
+      }
+
+      const fetchTokenIdOwners = async () => {
+        const options = {
+          address: "0x89b0d01FE3848774978F89A3fb7889a8851D8D83",
+          token_id:
+            "36461899886729445886229041418421588246282703725939487903395068677587707363329",
+          chain: "mumbai",
+        };
+        const tokenIdOwners = await Web3Api.token.getTokenIdOwners(options);
+        const addresses = tokenIdOwners.result.map((e) => e.owner_of);
+        setVoters(addresses);
+      };
+
+      fetchTokenIdOwners();
+      getProposals();
+      getPassRate();
+    }
+  }, [isInitialised]);
+
 
   return (
     <>
       <div className="content">
         <TabList defaultActiveKey={1} tabStyle="bulbUnion">
           <Tab tabKey={1} tabName="DAO">
+            {proposals && (
             <div className="tabContent">
               Governance Overview
             <div className="widgets">
                 <Widget
-                  info={52}
+                  info={totalP}
                   title="Proposals Created"
                   style={{ width: "200%"}}
                 >
@@ -57,13 +113,13 @@ const Home = () => {
                     <div className="progress">
                       <div
                         className="progressPercentage"
-                        style={{ width: '$(60)%' }}
+                        style={{ width: `${passRate}%` }}
                       ></div>
                       </div>
                     </div>
                 </Widget>
-                <Widget info={423} title="Eligible Voters" />
-                <Widget info={5} title="Ongoing Proposals" />
+                <Widget info={voters.length} title="Eligible Voters" />
+                <Widget info={totalP-counted} title="Ongoing Proposals" />
               </div>
               Recent Proposals
                 <div style={{ marginTop: "30px" }}>
@@ -102,7 +158,7 @@ const Home = () => {
                     title="Create a New Proposal"
                   />   
             </div>
-
+            )}
           </Tab>
           <Tab tabKey={2} tabName="Forum"></Tab>
           <Tab tabKey={3} tabName="Docs"></Tab>

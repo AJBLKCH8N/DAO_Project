@@ -2,33 +2,63 @@ import React, { useState, useEffect } from "react";
 import "./pages.css";
 import { Tag, Widget, Blockie, Tooltip, Icon, Form, Table } from "web3uikit";
 import { Link } from "react-router-dom";
+import { useLocation } from "react-router";
+import { useMoralis } from "react-moralis";
 
 const Proposal = () => {
 
-  const [votes, setVotes] = useState([
-    [
-      [
-        "0x4d2044D8D568c1644158625930De62c4AbBB004a",
-        <Icon fill="#268c41" size={24} svg="checkmark" />,
-      ],
-      [
-        "0x4d2044D8D568c1644158625930De62c4AbBB004a",
-        <Icon fill="#268c41" size={24} svg="checkmark" />,
-      ],
-      [
-        "0x4d2044D8D568c1644158625930De62c4AbBB004a",
-        <Icon fill="#d93d3d" size={24} svg="arrowCircleDown" />,
-      ],
-      [
-        "0x4d2044D8D568c1644158625930De62c4AbBB004a",
-        <Icon fill="#d93d3d" size={24} svg="arrowCircleDown" />,
-      ],
-      [
-        "0x4d2044D8D568c1644158625930De62c4AbBB004a",
-        <Icon fill="#d93d3d" size={24} svg="arrowCircleDown" />,
-      ],
-    ]
-  ]);
+  const { state: proposalDetails } = useLocation();
+  const { Moralis, isInitialized } = useMoralis();
+  const [latestVote, setLatestVote ] = useState();
+  const [percUp, setPercUp] = useState(0);
+  const [percDown, setPercDown ] = useState(0);
+  const [votes, setVotes] = useState([]);
+  
+  useEffect(() => {
+    if (isInitialized) {
+
+      async function getVotes () {
+
+        const Votes = Moralis.Object.extend("Votes");
+        const query = new Moralis.query(Votes);
+        query.equalTo("proposal", proposalDetails.id);
+        query.descending("createdAt");
+        const results = await query.find();
+        if (results.length > 0) {
+          setLatestVote(results[0].attributes.votesDown);
+          setPercDown(
+            (
+              (Number(results[0].attributes.votesDown) /
+                (Number(results[0].attributes.votesDown) +
+                  Number (results[0].attributes.votesUp))) *
+                    100
+            ).toFixed(0)
+          );
+          setPercUp (
+            (
+              (Number(results[0].attributes.votesUp) /
+                (Number(results[0].attributes.votesDown) +
+                  Number (results[0].attributes.votesUp))) *
+                    100
+            ).toFixed(0)
+          );
+        }
+
+        const votesDirection = results.map((e) => [
+          e.attributes.voter,
+          <Icon
+            fill={e.attributes.votedFor ? "#2cc40a" : "#d93d3d"}
+            size={24}
+            svg={e.attributes.votedFor ? "checkmark" : "arrowCircleDown"}
+            />,
+        ]);
+        
+        setVotes(votesDirection);
+
+      }
+      getVotes();
+    }
+  }, [isInitialized]);
 
   return (
     <>
@@ -40,42 +70,43 @@ const Proposal = () => {
               Overview
               </div>
           </Link>
-          <div>Should we accept Elon Musks $40 Billion offer fro our DAO?</div>
+          <div>{proposalDetails.description}</div>
           <div className="proposalOverview">
-            <Tag color={"red"} text={"Rejected"} />
+            <Tag color={proposalDetails.color} text={proposalDetails.text} />
             <div className="proposer">
               <span>Proposed By </span>
-              <Tooltip content= {"0x509Cb439418D0d672a7fa791134826c5cE436E66"}>
-                <Blockie seed={"0x509Cb439418D0d672a7fa791134826c5cE436E66"} />
+              <Tooltip content= {proposalDetails.proposer}>
+                <Blockie seed={proposalDetails.proposer} />
               </Tooltip>
             </div>
           </div>
         </div>
-
+        {latestVote && (
         <div className="Widgets">
-          <Widget info={10} title="Votes For">
+          <Widget info={latestVote.votesUp} title="Votes For">
             <div className="extraWidgetInfo">
-              <div className="extraTitle">(75)%</div>
+              <div className="extraTitle">{percUp}%</div>
                 <div className="progress">
                   <div
                       className="progressPercentage"
-                      style={{ width: '$(75)%' }}
+                      style={{ width: '${75}%' }}
                       ></div>
                 </div>
             </div>
           </Widget>
-          <Widget info={30} title="Votes For">
+          <Widget info={latestVote.votesDown} title="Votes Against">
             <div className="extraWidgetInfo">
-              <div className="extraTitle">(25)%</div>
+              <div className="extraTitle">{percDown}%</div>
                 <div className="progress">
                   <div
                       className="progressPercentage"
-                      style={{ width: '$(25)%' }}
+                      style={{ width: '${25}%' }}
                       ></div>
                 </div>
               </div>
           </Widget>
         </div>
+        )}
         <div className="votesDiv">
           <Table 
             style={{ width: "60%" }}
@@ -84,10 +115,37 @@ const Proposal = () => {
             header={[<span>Address</span>, <span>Vote</span>]}
             pageSize={5}
             />
+            <Form
+              style={{
+                width: "35%",
+                height: "250px",
+                border: "1px solid rgbal(6, 158, 252, 0.2)",
+              }}
+              buttonConfig={{
+                isLoading: false,
+                loadingText: "Casting Vote",
+                text: "Vote",
+                theme: "secondary",
+              }}
+              data={[
+                {
+                  inputWidth: "100%",
+                  name: "Cast Vote",
+                  options: ["For","Against"],
+                  type: "radios",
+                  validation: {
+                    required: true,
+                  },
+                },
+              ]}
+              onSubmit={(e) => {
+                alert("Vote Cast");
+              }}
+              title="Cast Vote"
+              />
         </div>
-
-
      </div>
+     <div className="voting"></div>
     </>
   );
 };
