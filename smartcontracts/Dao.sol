@@ -105,15 +105,22 @@ contract Dao {
         //this requires that the address making a proposal is eligible
 
         proposal storage newProposal = Proposals[nextProposal];
+        //creates a new proposal object called newProposal and stores it within the Proposals storage array
         newProposal.id = nextProposal;
+        //sets the newProposal id value to uint nextProposal
         newProposal.exists = true;
+        //sets the exists variable within the newProposal struct as true
         newProposal.description = _description;
+        //includes the descirption variable within newProposal as the input description of this function
         newProposal.deadLine = block.number + 100;
         //deadline for voting set to blocks
         newProposal.canVote = _canVote;
+        //checks for address within the canvote array
         newProposal.maxVotes = _canVote.length;
+        //sets the maximum number of votes allowable to the number of addresses withint he canvote array
 
         emit proposalCreated(nextProposal, _description, _canVote.length, msg.sender);
+        //emits proposalCreated log event
         nextProposal++;
         //increment for new proposal ID
     }
@@ -129,40 +136,56 @@ contract Dao {
         //ensure that the block number isnt higher than the deadline that has been set
 
         proposal storage p = Proposals[_id];
+        //creates a new object, p of proposal struct which is equal to the proposal ID
 
         if(_vote) {
+            //if the user votes 'yes' on the proposal, increment the votesUp variable
             p.votesUp++;
         }else{
             p.votesDown++;
+            //if the user votes 'no' on the proposal, increment the votesDown variable
         }
 
         p.voteStatus[msg.sender] = true;
+        //set the voteStatus of the address for this particular proposal to true
 
         emit newVote(p.votesUp, p.votesDown, msg.sender, _id, _vote);
+        //emits the newVote log event
     }
 
     function countVotes(uint256 _id) public {
         //function for the onwer to count the votes
         require(msg.sender == owner, "Only the owner can count votes");
+        //require that only the owner can count votes
         require(Proposals[_id].exists, "This proposal does not exist");
+        //require that the proposal of proposal ID actually exists
         require(block.number > Proposals[_id].deadLine, "Voting has not concluded");
+        //require that the alloted time has actually elapsed
         require(!Proposals[_id].countConducted, "Count already conducted");
+        //require that the count has already been conducted
 
         proposal storage p = Proposals[_id];
+        //creates a new object, p of proposal struct which is equal to the proposal ID
 
         if(Proposals[_id].votesDown < Proposals[_id].votesUp) {
+            //conditional to evaluate whether the vote has passed - i.e. more votes up than votes down
             p.passed = true;
+            //if more votesup than votesdown, then the proposal has passed
         }
 
         p.countConducted = true;
+        //count has been conducted
 
         emit proposalCount(_id, p.passed);
+        //emit a proposalCount log event
     }
 
     function addTokenId(uint256 _tokenId) public {
         //function to add new tokens to the DAO votes and Proposals
         require(msg.sender == owner, "Only the owner can add new Tokens");
+        //add new tokens to DAO votes & proposals form the contract interface (i.e. OpenSea collection)
 
         validTokens.push(_tokenId);
+        //adds the whitelisted token ID to the validTokens array
     }
 }
